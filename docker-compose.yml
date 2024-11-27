@@ -1,0 +1,162 @@
+version: '3'
+
+x-airflow-common: &airflow-common
+  image: airflow
+  # build: ./airflow
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- apache-airflow-providers-microsoft-mssql}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - airflow_logs:/opt/airflow/logs
+    - airflow_plugins:/opt/airflow/plugins
+    - airflow_scripts:/opt/airflow/scripts
+    - ./spark:/opt/airflow/code
+  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    big_data:
+
+
+services:
+  # Airflow cluster
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 5s
+      retries: 5
+    restart: always
+    networks:
+      big_data:
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    ports:
+      - 8080:8080
+    restart: always
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2g
+    #       cpus: '1.0'
+    command: webserver
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    restart: always
+    command: scheduler
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    command: version
+
+  # HDFS cluster
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - 9870:9870
+      - 9000:9000
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
+    restart: always
+    networks:
+      big_data:
+    volumes:
+      - hadoop_home:/home
+      - hadoop_namenode:/hadoop/dfs/name
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    restart: always
+    networks:
+      big_data:
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+
+  # Other
+  data-warehouse:
+    image: postgres
+    container_name: data-warehouse
+    environment:
+      - POSTGRES_USER=datawarehouse
+      - POSTGRES_PASSWORD=datawarehouse
+      - POSTGRES_DB=datawarehouse
+    ports:
+      - 5432:5432
+    networks:
+      big_data:
+    volumes:
+      - data-warehouse:/var/lib/postgresql/data
+  # superset:
+  #   image: superset
+  #   # build: ./superset
+  #   container_name: superset
+  #   environment:
+  #     - SUPERSET_SECRET_KEY=secret
+  #   ports:
+  #     - 8088:8088
+  #   networks:
+  #     big_data:
+  #   volumes:
+  #     - superset_data:/app/superset_home
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80" # Truy cập pgAdmin qua cổng 5050
+    networks:
+      - big_data
+
+networks:
+  big_data:
+
+
+volumes:
+  postgres-db-volume:
+  airflow_logs:
+  airflow_plugins:
+  airflow_scripts:
+  hadoop_home:
+  hadoop_namenode:
+  hadoop_datanode:
+  data-warehouse: # superset_data:

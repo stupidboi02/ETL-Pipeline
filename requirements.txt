@@ -1,0 +1,4 @@
+pyspark
+beautifulsoup4
+requests
+pandas
