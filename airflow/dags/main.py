@@ -21,11 +21,11 @@ with DAG(
     bash_command = "spark-submit /opt/airflow/code/push_to_hdfs.py", 
     )
 
-# transform_google_play_task = BashOperator(
-#     task_id = "transform_google_play_task",
-#     bash_command = "spark-submit --driver-class-path /opt/airflow/code/postgresql-42.2.5.jar /opt/airflow/code/transform_google_play.py", 
-#     dag = dag
-# )
+transform_google_play_task = BashOperator(
+    task_id = "transform_google_play_task",
+    bash_command = "spark-submit --driver-class-path /opt/airflow/code/postgresql-42.2.5.jar /opt/airflow/code/transform.py", 
+    dag = dag
+)
 
 # extract_load_task >> [transform_app_store_task, transform_google_play_task]
-extract_load_task
+extract_load_task >> transform_google_play_task
