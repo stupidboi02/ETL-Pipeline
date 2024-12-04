@@ -11,14 +11,16 @@ with DAG(
     "email": ["airflow@airflow.com"],
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 1,
-    "retry_delay": timedelta(minutes = 5)},
-    schedule=timedelta(days=1),
+    "retries": 0,
+    "retry_delay": timedelta(minutes = 1)
+    },
+    schedule_interval=timedelta(days=1), 
     catchup=False,
 ) as dag:
     extract_load_task = BashOperator(
     task_id = "extract_load_task",
     bash_command = "spark-submit /opt/airflow/code/push_to_hdfs.py", 
+     execution_timeout=timedelta(minutes=10)
     )
 
 transform_google_play_task = BashOperator(
@@ -27,5 +29,4 @@ transform_google_play_task = BashOperator(
     dag = dag
 )
 
-# extract_load_task >> [transform_app_store_task, transform_google_play_task]
 extract_load_task >> transform_google_play_task
