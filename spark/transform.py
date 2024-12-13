@@ -4,8 +4,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import re
 
-schema = StructType([
-    StructField("name", StringType(), True),
+schema = StructType([StructField("name", StringType(), True),
     StructField("company", StringType(), True),
     StructField("ratings", DoubleType(), True),
     StructField("reviews", DoubleType(), True),
@@ -95,6 +94,8 @@ def extract_download(downloads):
         return 0
     
 def extract_classify(classify):
+    if not classify:
+        return None
     text = classify[0].text
     start = 0
     for i in range(len(text)):
@@ -119,7 +120,9 @@ def transform(classification):
 
     data = []
     for i in range(len(listUrl)):
+    # def parse_content(row):
         soup = BeautifulSoup(listContent[i].content,'html.parser')
+        
         name = soup.find_all('h1')
         company = soup.find_all(class_ = 'Vbfug auoIOc')
         rating = soup.find_all(class_ = 'jILTFe')
@@ -131,8 +134,8 @@ def transform(classification):
 
         field ={}
 
-        if len(name) == 0:
-            continue
+        if len(name) == 0: return None
+            # continue
         field['name'] = extract_name(name)
         field['company'] = extract_company(company)
         field['ratings'] = extract_rating(rating)
@@ -140,36 +143,40 @@ def transform(classification):
         field['age'] = extract_age(reviewAndAge)
         field['downloads'] = extract_download(downloads)
         field['classify'] = extract_classify(classify)
-        field['describe'] = describe[0].text
-        field['lastVersion'] = lastVersion[0].text
+        field['describe'] = describe[0].text if describe else None
+        field['lastVersion'] = lastVersion[0].text if lastVersion else None
 
         data.append(field)
     
     # write to postgresql
-    df_ = spark.createDataFrame(data,schema=schema)
-    try:
-        df_.write.mode('overwrite')\
-            .format('jdbc')\
-            .option('url', 'jdbc:postgresql://data-warehouse:5432/datawarehouse')\
-            .option('dbtable', classification + '_' + runtime)\
-            .option('user','datawarehouse')\
-            .option('password','datawarehouse')\
-            .option('driver','org.postgresql.Driver')\
-            .save()
-        print("Write to PostgreSql successfully")
-    except Exception as e:
-        print("can not write to Postgresql", e)
+    # parsed_data = df.rdd.map(parse_content).filter(lambda x: x is not None)
+
+    df_ = spark.createDataFrame(data = data, schema = schema)
+    df_.write.mode('overwrite').json(f'./spark/clean_data/{classification}/raw_data/{runtime}')
+    # df_.write.mode('overwrite').csv('hdfs://namenode:9000/game_phone/test6-12')
+    # try:
+    #     df_.write.mode('overwrite')\
+    #         .format('jdbc')\
+    #         .option('url', 'jdbc:postgresql://data-warehouse:5432/datawarehouse')\
+    #         .option('dbtable', classification + '_' + runtime)\
+    #         .option('user','datawarehouse')\
+    #         .option('password','datawarehouse')\
+    #         .option('driver','org.postgresql.Driver')\
+    #         .save()
+    #     print("Write to PostgreSql successfully")
+    # except Exception as e:
+    #     print("can not write to Postgresql", e)
     
 if __name__ == '__main__':
-    runtime = datetime.now().strftime('%d%m%y')
-    # runtime = '281124'
+    # runtime = datetime.now().strftime('%d%m%y')
+    runtime = '041224'
 
-    spark = SparkSession.builder.appName('transform') \
-        .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar') \
-        .config('spark.sql.shuffle.partitions', '50') \
-        .config('spark.driver.memory', '4g') \
-        .config('spark.executor.memory', '4g') \
-        .getOrCreate()
+    # spark = SparkSession.builder.appName('transform') \
+    #     .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
+        # .config('spark.sql.shuffle.partitions', '50') \
+        # .config('spark.driver.memory', '4g') \
+        # .config('spark.executor.memory', '4g') \
+    spark = SparkSession.builder.appName('test').getOrCreate()
 
     transform('game_phone')
     # transform('game_tablet')

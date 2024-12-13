@@ -145,7 +145,7 @@ services:
     volumes:
       - pgadmin:/var/lib/pgadmin
     ports:
-      - "5050:80" # Truy cập pgAdmin qua cổng 5050
+      - "5050:80"
     networks:
       - big_data
 

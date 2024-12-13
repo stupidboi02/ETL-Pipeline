@@ -29,4 +29,5 @@ transform_google_play_task = BashOperator(
     dag = dag
 )
 
-extract_load_task >> transform_google_play_task
+extract_load_task 
+# >> transform_google_play_task
