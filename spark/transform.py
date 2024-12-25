@@ -150,34 +150,27 @@ def transform(classification):
     
     # write to postgresql
     # parsed_data = df.rdd.map(parse_content).filter(lambda x: x is not None)
-
     df_ = spark.createDataFrame(data = data, schema = schema)
-    df_.write.mode('overwrite').json(f'./spark/clean_data/{classification}/raw_data/{runtime}')
-    # df_.write.mode('overwrite').csv('hdfs://namenode:9000/game_phone/test6-12')
-    # try:
-    #     df_.write.mode('overwrite')\
-    #         .format('jdbc')\
-    #         .option('url', 'jdbc:postgresql://data-warehouse:5432/datawarehouse')\
-    #         .option('dbtable', classification + '_' + runtime)\
-    #         .option('user','datawarehouse')\
-    #         .option('password','datawarehouse')\
-    #         .option('driver','org.postgresql.Driver')\
-    #         .save()
-    #     print("Write to PostgreSql successfully")
-    # except Exception as e:
-    #     print("can not write to Postgresql", e)
+
+    try:
+        df_.write.mode('overwrite')\
+            .format('jdbc')\
+            .option('url', 'jdbc:postgresql://data-warehouse:5432/datawarehouse')\
+            .option('dbtable', classification + '_' + runtime)\
+            .option('user','datawarehouse')\
+            .option('password','datawarehouse')\
+            .option('driver','org.postgresql.Driver')\
+            .save()
+        print("Write to PostgreSql successfully")
+    except Exception as e:
+        print("can not write to Postgresql", e)
     
 if __name__ == '__main__':
     # runtime = datetime.now().strftime('%d%m%y')
     runtime = '041224'
 
-    # spark = SparkSession.builder.appName('transform') \
-    #     .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
-        # .config('spark.sql.shuffle.partitions', '50') \
-        # .config('spark.driver.memory', '4g') \
-        # .config('spark.executor.memory', '4g') \
-    spark = SparkSession.builder.appName('test').getOrCreate()
-
+    spark = SparkSession.builder.appName('transform') \
+        .config('spark.jars', '/opt/code/postgresql-42.2.5.jar').getOrCreate()
     transform('game_phone')
     # transform('game_tablet')
 
