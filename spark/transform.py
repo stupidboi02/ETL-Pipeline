@@ -25,38 +25,34 @@ def extract_name(names):
         return None
         
 def extract_company(companys):
-   if companys:
-       for i in companys:
-           if i.find('span'):
-               return i.text
-   else:
-       return None
+    return companys[0].text if companys else None
    
 def extract_rating(ratings):
     if ratings:
-        return ratings[0].text
-    else:
-        return 0
+        try:
+            return float(ratings[0].text)
+        except ValueError:
+            return 0.0
+    return 0.0
 
-#number of review and age has the same class name
 def extract_number_of_review(reviewAndAges):
     if reviewAndAges:
         if len(reviewAndAges) <= 2:
-            return 0
+            return 0.0
         reviews = reviewAndAges[0].text.strip()
         reviews = str(reviews).split(' ')[0]
         if 'K' in reviews:
-            number = float(reviews.replace('K',''))
-            return int(number * 1000)
+            number = float(reviews.replace('K', ''))
+            return number * 1000.0
         if 'M' in reviews:
-            number = float(reviews.replace('M',''))
-            return int(number * 1000000)
+            number = float(reviews.replace('M', ''))
+            return number * 1000000.0
         if 'B' in reviews:
-            number = float(reviews.replace('B',''))
-            return int(number * 1000000000)
-        return int(float(reviews))
+            number = float(reviews.replace('B', ''))
+            return number * 1000000000.0
+        return float(reviews)
     else:
-        return 0
+        return 0.0
 
 def extract_age(reviewAndAges):
     if reviewAndAges:
@@ -78,37 +74,42 @@ def extract_download(downloads):
     d = ''
     if downloads:
         if len(downloads) == 1:
-            return 0
+            return 0.0
         if len(downloads) == 2:
             d = downloads[0].text
         else:
             d = downloads[1].text
-        tmp = re.sub(r'[^\d]','',d)
+        tmp = re.sub(r'[^\d]', '', d)
         if 'K' in d:
-            return int(tmp)*1000
+            return float(tmp) * 1000.0
         if 'M' in d:
-            return int(tmp)*1000000
+            return float(tmp) * 1000000.0
         if 'B' in d:
-            return int(tmp)*1000000000
+            return float(tmp) * 1000000000.0
+        return float(tmp)
     else:
-        return 0
+        return 0.0
     
 def extract_classify(classify):
     if not classify:
         return None
     text = classify[0].text
     start = 0
+
     for i in range(len(text)):
         if text[i].isupper():
             start = i
             break
+
     result = text[start]
-    for i in range(start+1, len(text)):
+
+    for i in range(start + 1, len(text)):
         if text[i].isalpha():
             result += text[i]
-            if text[i+1].isupper():
+            if i + 1 < len(text) and text[i + 1].isupper():
                 break
     return result
+
 
 
 def transform(classification):

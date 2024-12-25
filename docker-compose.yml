@@ -55,11 +55,11 @@ services:
     ports:
       - 8080:8080
     restart: always
-    deploy:
-      resources:
-        limits:
-          memory: 4g # Giới hạn bộ nhớ cho webserver
-    mem_limit: 4g # Đảm bảo giới hạn bộ nhớ cho container
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 4g # Giới hạn bộ nhớ cho webserver
+    # mem_limit: 4g # Đảm bảo giới hạn bộ nhớ cho container
     command: webserver
 
   airflow-scheduler:
