@@ -1,1 +1,2 @@
-data/*.parquet
+data/game_phone/*.parquet
+data/game_tablet/*.parquet
