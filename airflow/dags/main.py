@@ -19,7 +19,7 @@ with DAG(
 ) as dag:
     extract_load_task = BashOperator(
     task_id = "extract_load_task",
-    bash_command = "spark-submit /opt/airflow/code/push_to_hdfs.py", 
+    bash_command = "spark-submit /opt/airflow/code/extract.py", 
      execution_timeout=timedelta(minutes=10)
     )
 
@@ -29,5 +29,4 @@ transform_google_play_task = BashOperator(
     dag = dag
 )
 
-extract_load_task 
-# >> transform_google_play_task
+extract_load_task >> transform_google_play_task

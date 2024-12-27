@@ -167,12 +167,12 @@ def transform(classification):
         print("can not write to Postgresql", e)
     
 if __name__ == '__main__':
-    # runtime = datetime.now().strftime('%d%m%y')
-    runtime = '041224'
+    runtime = datetime.now().strftime('%d%m%y')
+    # runtime = '301124'
 
     spark = SparkSession.builder.appName('transform') \
         .config('spark.jars', '/opt/code/postgresql-42.2.5.jar').getOrCreate()
     transform('game_phone')
-    # transform('game_tablet')
+    transform('game_tablet')
 
 

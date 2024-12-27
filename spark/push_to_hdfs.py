@@ -2,7 +2,8 @@ from pyspark.sql.session import SparkSession
 import os
 from datetime import datetime
 
-run_time = datetime.now().strftime('%d%m%y')
+# run_time = datetime.now().strftime('%d%m%y')
+run_time = '131224'
 
 def push(path, classify):
     try:
