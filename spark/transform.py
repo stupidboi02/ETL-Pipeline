@@ -171,7 +171,7 @@ if __name__ == '__main__':
     # runtime = '301124'
 
     spark = SparkSession.builder.appName('transform') \
-        .config('spark.jars', '/opt/code/postgresql-42.2.5.jar').getOrCreate()
+        .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
     transform('game_phone')
     transform('game_tablet')
 

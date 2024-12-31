@@ -1,8 +1,10 @@
 version: '3'
 
 x-airflow-common: &airflow-common
-  image: airflow
-  # build: ./airflow
+  image: airflow-final
+  build:
+    context: ./airflow
+    dockerfile: dockerfile
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -27,23 +29,6 @@ x-airflow-common: &airflow-common
 
 services:
   # Airflow cluster
-  postgres:
-    image: postgres
-    container_name: postgres
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "airflow" ]
-      interval: 5s
-      retries: 5
-    restart: always
-    networks:
-      big_data:
-    volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
-
   airflow-webserver:
     <<: *airflow-common
     container_name: airflow-webserver
@@ -55,11 +40,6 @@ services:
     ports:
       - 8080:8080
     restart: always
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 4g # Giới hạn bộ nhớ cho webserver
-    # mem_limit: 4g # Đảm bảo giới hạn bộ nhớ cho container
     command: webserver
 
   airflow-scheduler:
@@ -110,32 +90,95 @@ services:
     volumes:
       - hadoop_datanode:/hadoop/dfs/data
 
-  # Other
-  data-warehouse:
-    image: postgres
-    container_name: data-warehouse
-    environment:
-      - POSTGRES_USER=datawarehouse
-      - POSTGRES_PASSWORD=datawarehouse
-      - POSTGRES_DB=datawarehouse
+  #spark cluster
+  spark-master:
+    image: docker.io/bitnami/spark:3.5
+    container_name: spark-master
+    hostname: spark-master
+    depends_on:
+      - namenode
+      - datanode
     ports:
-      - 5432:5432
+      - "9090:8080"
+      - "7077:7077"
+    environment:
+      - INIT_DAEMON_STEP=setup_spark
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    networks:
+      - big_data
+    volumes:
+      - ./spark:/opt/airflow/code
+
+  spark-worker-a:
+    image: docker.io/bitnami/spark:3.5
+    container_name: spark-worker-a
+    depends_on:
+      - spark-master
+    ports:
+      - "9091:8080"
+      - "7000:7000"
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_WORKLOAD=worker
+      - SPARK_LOCAL_IP=spark-worker-a
+      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_DRIVER_MEMORY=1G
+      - SPARK_EXECUTOR_MEMORY=1G
+    networks:
+      - big_data
+    volumes:
+      - ./spark:/opt/airflow/code
+
+  spark-worker-b:
+    image: docker.io/bitnami/spark:3.5
+    container_name: spark-worker-b
+    depends_on:
+      - spark-master
+    ports:
+      - "9092:8080"
+      - "7001:7000"
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER=spark://spark-master:7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+      - SPARK_WORKLOAD=worker
+      - SPARK_LOCAL_IP=spark-worker-b
+      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_DRIVER_MEMORY=1G
+      - SPARK_EXECUTOR_MEMORY=1G
+    networks:
+      - big_data
+    volumes:
+      - ./spark:/opt/airflow/code
+
+  # Other
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 5s
+      retries: 5
+    restart: always
     networks:
       big_data:
     volumes:
-      - data-warehouse:/var/lib/postgresql/data
-  # superset:
-  #   image: superset
-  #   # build: ./superset
-  #   container_name: superset
-  #   environment:
-  #     - SUPERSET_SECRET_KEY=secret
-  #   ports:
-  #     - 8088:8088
-  #   networks:
-  #     big_data:
-  #   volumes:
-  #     - superset_data:/app/superset_home
+      - postgres-db-volume:/var/lib/postgresql/data
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin
@@ -149,37 +192,36 @@ services:
     networks:
       - big_data
 
-  spark-master:
-    image: bde2020/spark-master:3.0.0-hadoop3.2
-    container_name: spark-master
-    depends_on:
-      - namenode
-      - datanode
-    ports:
-      - "7077:7077"
+  data-warehouse:
+    image: postgres
+    container_name: data-warehouse
     environment:
-      - INIT_DAEMON_STEP=setup_spark
-      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
-      - SPARK_MASTER_HOST=spark-master
+      - POSTGRES_USER=datawarehouse
+      - POSTGRES_PASSWORD=datawarehouse
+      - POSTGRES_DB=datawarehouse
+    ports:
+      - 5432:5432
     networks:
-      - big_data
+      big_data:
+    volumes:
+      - data-warehouse:/var/lib/postgresql/data
 
-  spark-worker:
-    image: bde2020/spark-worker:3.0.0-hadoop3.2
-    container_name: spark-worker
-    depends_on:
-      - spark-master
-    ports:
-      - "7078:7078"
+  #visualization
+  superset:
+    build:
+      context: ./superset
+      dockerfile: dockerfile
+    container_name: superset
     environment:
-      - "SPARK_MASTER=spark://spark-master:7077"
-      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
-      - SPARK_WORKLOAD=worker
-      - SPARK_LOCAL_IP=spark-worker
+      - ADMIN_USERNAME=admin
+      - ADMIN_EMAIL=admin@admin.com
+      - ADMIN_PASSWORD=admin
+    ports:
+      - '8088:8088'
     networks:
       - big_data
     volumes:
-      - ./spark:/opt/code
+      - superset_data:/app/superset_home
 
 networks:
   big_data:
@@ -193,5 +235,6 @@ volumes:
   hadoop_home:
   hadoop_namenode:
   hadoop_datanode:
-  data-warehouse: # superset_data:
+  data-warehouse:
+  superset_data:
   pgadmin:

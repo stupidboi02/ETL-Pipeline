@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime, timedelta
 
 with DAG(
@@ -20,13 +21,19 @@ with DAG(
     extract_load_task = BashOperator(
     task_id = "extract_load_task",
     bash_command = "spark-submit /opt/airflow/code/extract.py", 
-     execution_timeout=timedelta(minutes=10)
+    execution_timeout=timedelta(minutes=10)
     )
 
-transform_google_play_task = BashOperator(
+# transform_google_play_task = BashOperator(
+#     task_id = "transform_google_play_task",
+#     bash_command = "spark-submit --driver-class-path /opt/airflow/code/postgresql-42.2.5.jar /opt/airflow/code/transform.py", 
+#     dag = dag
+# )
+transform_google_play_task = SparkSubmitOperator(
     task_id = "transform_google_play_task",
-    bash_command = "spark-submit --driver-class-path /opt/airflow/code/postgresql-42.2.5.jar /opt/airflow/code/transform.py", 
-    dag = dag
+    conn_id = "spark-connection",
+    jars="/opt/airflow/code/postgresql-42.2.5.jar",
+    application = "/opt/airflow/code/transform.py"
 )
 
-extract_load_task >> transform_google_play_task
+extract_load_task  >> transform_google_play_task

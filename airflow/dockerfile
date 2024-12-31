@@ -11,4 +11,5 @@ RUN export JAVA_HOME
 
 USER airflow
 RUN pip install pyspark \
-    && pip install apache-airflow-providers-microsoft-mssql
+    && pip install apache-airflow-providers-microsoft-mssql\
+    && pip install apache-airflow-providers-apache-spark
