@@ -169,7 +169,6 @@ def transform(classification):
 if __name__ == '__main__':
     runtime = datetime.now().strftime('%d%m%y')
     # runtime = '301124'
-
     spark = SparkSession.builder.appName('transform') \
         .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
     transform('game_phone')

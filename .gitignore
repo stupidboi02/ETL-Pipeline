@@ -1,2 +1,2 @@
-data/game_phone/*.parquet
-data/game_tablet/*.parquet
+git rm --cached data/game_phone/*.parquet
+git rm --cached data/game_tablet/*.parquet

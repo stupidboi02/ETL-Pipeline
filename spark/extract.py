@@ -53,7 +53,6 @@ def extract(url, classify):
     df.write.mode('overwrite').parquet(f'hdfs://namenode:9000/{classify}/{run_time}')
 
 if __name__ == "__main__":
-    # .config("spark.hadoop.fs.defaultFS", "hdfs://namenode:9000") \
     spark = SparkSession.Builder().appName('extractToHDFS').getOrCreate()
     extract('https://play.google.com/store/games?device=phone', 'game_phone')
     extract('https://play.google.com/store/games?device=tablet', 'game_tablet')
