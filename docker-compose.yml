@@ -90,9 +90,22 @@ services:
     volumes:
       - hadoop_datanode:/hadoop/dfs/data
 
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    restart: always
+    networks:
+      big_data:
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+
   #spark cluster
   spark-master:
-    image: docker.io/bitnami/spark:3.5
+    image: spark-final
     container_name: spark-master
     hostname: spark-master
     depends_on:
@@ -116,7 +129,7 @@ services:
       - ./spark:/opt/airflow/code
 
   spark-worker-a:
-    image: docker.io/bitnami/spark:3.5
+    image: spark-final
     container_name: spark-worker-a
     depends_on:
       - spark-master
@@ -139,7 +152,7 @@ services:
       - ./spark:/opt/airflow/code
 
   spark-worker-b:
-    image: docker.io/bitnami/spark:3.5
+    image: spark-final
     container_name: spark-worker-b
     depends_on:
       - spark-master
@@ -235,6 +248,7 @@ volumes:
   hadoop_home:
   hadoop_namenode:
   hadoop_datanode:
+  hadoop_datanode2:
   data-warehouse:
   superset_data:
   pgadmin:
