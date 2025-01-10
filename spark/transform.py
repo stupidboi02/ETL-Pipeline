@@ -1,5 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
+from pyspark.sql.functions import udf, col
 from datetime import datetime
 from bs4 import BeautifulSoup
 import re
@@ -15,19 +16,29 @@ schema = StructType([StructField("name", StringType(), True),
     StructField("lastVersion", StringType(), True),
 ])
 
-schema_hdfs = StructType([StructField('url', StringType(), True),StructField('content', StringType(), True),])
-def extract_name(names):
-    if names:
-        for i in names:
-            if i.find('span', class_='AfwdI', itemprop = 'name'):
-                return i.text
-    else:
-        return None
-        
-def extract_company(companys):
-    return companys[0].text if companys else None
+schema_hdfs = StructType([
+    StructField('url', StringType(), True),
+    StructField('content', StringType(), True),])
+
+@udf(returnType=StringType())
+def extract_name(content):
+    soup = BeautifulSoup(content, 'html.parser')
+    names = soup.find_all('h1')
+    for name in names:
+        if name.find('span', class_='AfwdI', itemprop='name'):
+            return name.text
+    return None
+
+@udf(returnType=StringType())
+def extract_company(content):
+    soup = BeautifulSoup(content, 'html.parser')
+    company = soup.find_all(class_='Vbfug auoIOc')
+    return company[0].text if company else None
    
-def extract_rating(ratings):
+@udf(returnType=DoubleType())
+def extract_rating(content):
+    soup = BeautifulSoup(content, 'html.parser')
+    ratings = soup.find_all(class_='jILTFe')
     if ratings:
         try:
             return float(ratings[0].text)
@@ -35,26 +46,29 @@ def extract_rating(ratings):
             return 0.0
     return 0.0
 
-def extract_number_of_review(reviewAndAges):
+@udf(returnType=DoubleType())
+def extract_number_of_review(content):
+    soup = BeautifulSoup(content, 'html.parser')
+    reviewAndAges = soup.find_all(class_='g1rdde')
     if reviewAndAges:
-        if len(reviewAndAges) <= 2:
+        reviews = reviewAndAges[0].text.strip().split(' ')[0]
+        try:
+            if 'K' in reviews:
+                return float(reviews.replace('K', '')) * 1000.0
+            elif 'M' in reviews:
+                return float(reviews.replace('M', '')) * 1000000.0
+            elif 'B' in reviews:
+                return float(reviews.replace('B', '')) * 1000000000.0
+            else:
+                return float(reviews)
+        except ValueError:
             return 0.0
-        reviews = reviewAndAges[0].text.strip()
-        reviews = str(reviews).split(' ')[0]
-        if 'K' in reviews:
-            number = float(reviews.replace('K', ''))
-            return number * 1000.0
-        if 'M' in reviews:
-            number = float(reviews.replace('M', ''))
-            return number * 1000000.0
-        if 'B' in reviews:
-            number = float(reviews.replace('B', ''))
-            return number * 1000000000.0
-        return float(reviews)
-    else:
-        return 0.0
+    return 0.0
 
-def extract_age(reviewAndAges):
+@udf(returnType=StringType())
+def extract_age(content):
+    soup = BeautifulSoup(content, 'html.parser')
+    reviewAndAges = soup.find_all(class_= 'g1rdde')
     if reviewAndAges:
         if len(reviewAndAges) == 1:
             age = reviewAndAges[0].find('span',itemprop='contentRating').text
@@ -70,8 +84,11 @@ def extract_age(reviewAndAges):
     else:
         return 0
 
-def extract_download(downloads):
+@udf(returnType=DoubleType())
+def extract_download(content):
+    soup = BeautifulSoup(content, 'html.parser')
     d = ''
+    downloads = soup.find_all(class_='ClM7O')
     if downloads:
         if len(downloads) == 1:
             return 0.0
@@ -80,17 +97,22 @@ def extract_download(downloads):
         else:
             d = downloads[1].text
         tmp = re.sub(r'[^\d]', '', d)
-        if 'K' in d:
-            return float(tmp) * 1000.0
-        if 'M' in d:
-            return float(tmp) * 1000000.0
-        if 'B' in d:
-            return float(tmp) * 1000000000.0
-        return float(tmp)
-    else:
-        return 0.0
-    
-def extract_classify(classify):
+        try:
+            if 'K' in d:
+                return float(tmp) * 1000.0
+            if 'M' in d:
+                return float(tmp) * 1000000.0
+            if 'B' in d:
+                return float(tmp) * 1000000000.0
+            return float(tmp)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+@udf(returnType=StringType())
+def extract_classify(content):
+    soup = BeautifulSoup(content, 'html.parser')
+    classify = soup.find_all(class_='Uc6QCc')
     if not classify:
         return None
     text = classify[0].text
@@ -110,49 +132,21 @@ def extract_classify(classify):
                 break
     return result
 
-
-
 def transform(classification):
-
     df = spark.read.schema(schema_hdfs).parquet('hdfs://namenode:9000/' + classification + '/' + runtime)
-
-    listUrl = df.select('url').collect()
-    listContent = df.select('content').collect()
-
-    data = []
-    for i in range(len(listUrl)):
-    # def parse_content(row):
-        soup = BeautifulSoup(listContent[i].content,'html.parser')
-        
-        name = soup.find_all('h1')
-        company = soup.find_all(class_ = 'Vbfug auoIOc')
-        rating = soup.find_all(class_ = 'jILTFe')
-        reviewAndAge = soup.find_all(class_= 'g1rdde')
-        downloads = soup.find_all(class_='ClM7O')
-        classify = soup.find_all(class_='Uc6QCc')
-        describe = soup.find_all(class_='bARER')
-        lastVersion = soup.find_all(class_ = 'xg1aie')
-
-        field ={}
-
-        if len(name) == 0: return None
-            # continue
-        field['name'] = extract_name(name)
-        field['company'] = extract_company(company)
-        field['ratings'] = extract_rating(rating)
-        field['reviews'] = extract_number_of_review(reviewAndAge)
-        field['age'] = extract_age(reviewAndAge)
-        field['downloads'] = extract_download(downloads)
-        field['classify'] = extract_classify(classify)
-        field['describe'] = describe[0].text if describe else None
-        field['lastVersion'] = lastVersion[0].text if lastVersion else None
-
-        data.append(field)
+    df_ = df.withColumn("name", extract_name(col("content"))) \
+            .withColumn("company", extract_company(col("content"))) \
+            .withColumn("ratings", extract_rating(col("content"))) \
+            .withColumn("reviews", extract_number_of_review(col("content"))) \
+            .withColumn("age", extract_age(col("content"))) \
+            .withColumn("downloads", extract_download(col("content"))) \
+            .withColumn("classify", extract_classify(col("content")))
+    df_ = df_.drop('url','content')
     
-    # write to postgresql
-    # parsed_data = df.rdd.map(parse_content).filter(lambda x: x is not None)
-    df_ = spark.createDataFrame(data = data, schema = schema)
+    #rm duplicate
+    df_= df_.dropDuplicates(["name","company","ratings","reviews","age","downloads","classify"])
 
+    # write to postgresql
     try:
         df_.write.mode('overwrite')\
             .format('jdbc')\
@@ -162,9 +156,9 @@ def transform(classification):
             .option('password','datawarehouse')\
             .option('driver','org.postgresql.Driver')\
             .save()
-        print("Write to PostgreSql successfully")
+        print("-------------DU LIEU DUOC GHI THANH CONG---------------------------")
     except Exception as e:
-        print("can not write to Postgresql", e)
+        print("--------------------GHI DU LIEU THAT BAI--------------------------------", e)
     
 if __name__ == '__main__':
     runtime = datetime.now().strftime('%d%m%y')
