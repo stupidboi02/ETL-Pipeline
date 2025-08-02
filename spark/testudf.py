@@ -175,5 +175,3 @@
 #         .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
 #     transform('game_phone')
 #     transform('game_tablet')
-
-

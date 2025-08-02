@@ -1,0 +1,1 @@
+spark-submit --master spark://spark-master:7077 --packages org.postgresql:postgresql:42.2.5 /opt/airflow/code/transform.py

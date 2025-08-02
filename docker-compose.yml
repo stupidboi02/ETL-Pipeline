@@ -1,18 +1,17 @@
 version: '3'
 
 x-airflow-common: &airflow-common
-  image: airflow-final
+  image: chickengang/airflow
   build:
     context: ./airflow
     dockerfile: dockerfile
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- apache-airflow-providers-microsoft-mssql}
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 10
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - airflow_logs:/opt/airflow/logs
@@ -26,26 +25,31 @@ x-airflow-common: &airflow-common
   networks:
     big_data:
 
-
 services:
   # Airflow cluster
   airflow-webserver:
     <<: *airflow-common
     container_name: airflow-webserver
+    ports:
+      - 8080:8080
     healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 10s
       timeout: 10s
       retries: 5
-    ports:
-      - 8080:8080
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     restart: always
-    command: webserver
+    command: airflow webserver
 
   airflow-scheduler:
     <<: *airflow-common
     container_name: airflow-scheduler
     restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
     command: scheduler
 
   airflow-init:
@@ -53,12 +57,28 @@ services:
     container_name: airflow-init
     environment:
       <<: *airflow-common-env
-      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
-    command: version
+    command: db migrate
 
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 5s
+      retries: 5
+    restart: always
+    networks:
+      big_data:
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
   # HDFS cluster
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
@@ -175,22 +195,6 @@ services:
       - ./spark:/opt/airflow/code
 
   # Other
-  postgres:
-    image: postgres
-    container_name: postgres
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "airflow" ]
-      interval: 5s
-      retries: 5
-    restart: always
-    networks:
-      big_data:
-    volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
 
   pgadmin:
     image: dpage/pgadmin4
@@ -205,12 +209,12 @@ services:
     networks:
       - big_data
 
-  data-warehouse:
+  app-warehouse:
     image: postgres
     container_name: data-warehouse
     environment:
-      - POSTGRES_USER=datawarehouse
-      - POSTGRES_PASSWORD=datawarehouse
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
       - POSTGRES_DB=datawarehouse
     ports:
       - 5432:5432
@@ -220,28 +224,28 @@ services:
       - data-warehouse:/var/lib/postgresql/data
 
   #visualization
-  superset:
-    build:
-      context: ./superset
-      dockerfile: dockerfile
-    container_name: superset
-    environment:
-      - ADMIN_USERNAME=admin
-      - ADMIN_EMAIL=admin@admin.com
-      - ADMIN_PASSWORD=admin
-    ports:
-      - '8088:8088'
-    networks:
-      - big_data
-    volumes:
-      - superset_data:/app/superset_home
+  # superset:
+  #   build:
+  #     context: ./superset
+  #     dockerfile: dockerfile
+  #   container_name: superset
+  #   environment:
+  #     - ADMIN_USERNAME=admin
+  #     - ADMIN_EMAIL=admin@admin.com
+  #     - ADMIN_PASSWORD=admin
+  #   ports:
+  #     - '8088:8088'
+  #   networks:
+  #     - big_data
+  #   volumes:
+  #     - superset_data:/app/superset_home
 
 networks:
   big_data:
 
 
 volumes:
-  postgres-db-volume:
+  postgres-volume:
   airflow_logs:
   airflow_plugins:
   airflow_scripts:

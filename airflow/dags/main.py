@@ -24,33 +24,12 @@ with DAG(
     execution_timeout=timedelta(minutes=8)
     )
     
-    # transform_google_play_task = BashOperator(
-    #     task_id = "transform_google_play_task",
-    #     bash_command = "spark-submit --driver-class-path /opt/airflow/code/postgresql-42.2.5.jar /opt/airflow/code/transform.py", 
-    #     dag = dag
-    # )
-
-    # extract_load_task = SparkSubmitOperator(
-    # task_id = "extract_load_task",
-    # conn_id = "spark-connection",
-    # application= "/opt/airflow/code/extract.py", 
-    # execution_timeout=timedelta(minutes=10)
-    # )
-
     transform_google_play_task = SparkSubmitOperator(
         task_id = "transform_google_play_task",
         conn_id = "spark-connection",
-        jars="/opt/airflow/code/postgresql-42.2.5.jar",
+        # jars="/opt/airflow/code/postgresql-42.2.5.jar",
+        packages="org.postgresql:postgresql:42.2.5",
         application = "/opt/airflow/code/transform.py",
         dag = dag
     )
-
-    load_google_play_task = SparkSubmitOperator(
-        task_id = "load_google_play_task",
-        conn_id = "spark-connection",
-        jars="/opt/airflow/code/postgresql-42.2.5.jar",
-        application = "/opt/airflow/code/load.py",
-        dag = dag
-    )
-
-    extract_load_task  >> transform_google_play_task >> load_google_play_task
+    extract_load_task  >> transform_google_play_task 

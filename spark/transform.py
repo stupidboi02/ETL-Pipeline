@@ -1,20 +1,9 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
-from pyspark.sql.functions import udf, col
+from pyspark.sql.functions import udf, col, lit
 from datetime import datetime
 from bs4 import BeautifulSoup
 import re
-
-schema = StructType([StructField("name", StringType(), True),
-    StructField("company", StringType(), True),
-    StructField("ratings", DoubleType(), True),
-    StructField("reviews", DoubleType(), True),
-    StructField("age", StringType(), True),
-    StructField("downloads", DoubleType(), True),
-    StructField("classify", StringType(), True),
-    StructField("describe", StringType(), True),
-    StructField("lastVersion", StringType(), True),
-])
 
 schema_hdfs = StructType([
     StructField('url', StringType(), True),
@@ -132,28 +121,34 @@ def extract_classify(content):
                 break
     return result
 
-def transform(classification):
-    df = spark.read.schema(schema_hdfs).parquet('hdfs://namenode:9000/' + classification + '/' + runtime)
+def transform(category, device):
+    df = spark.read.schema(schema_hdfs).parquet('hdfs://namenode:9000/' + runtime +'/' + category + '/' + device)
+    print("___________________________________________________________________________________")
+    df.show()
     df_ = df.withColumn("name", extract_name(col("content"))) \
             .withColumn("company", extract_company(col("content"))) \
             .withColumn("ratings", extract_rating(col("content"))) \
             .withColumn("reviews", extract_number_of_review(col("content"))) \
             .withColumn("age", extract_age(col("content"))) \
             .withColumn("downloads", extract_download(col("content"))) \
-            .withColumn("classify", extract_classify(col("content")))
+            .withColumn("classify", extract_classify(col("content")))\
+            .withColumn("category", lit(category))\
+            .withColumn("device", lit(device))\
+            .withColumn("scraped_date", lit(datetime.now().date()))
     df_ = df_.drop('url','content')
-    
+    print("___________________________________________________________________________________")
+    df_.show()
     #rm duplicate
-    df_= df_.dropDuplicates(["name","company","ratings","reviews","age","downloads","classify"])
+    df_= df_.dropDuplicates(["name","company","ratings","reviews","age","downloads","classify","device","scraped_date","category"])
 
     # write to postgresql
     try:
-        df_.write.mode('overwrite')\
+        df_.write.mode('append')\
             .format('jdbc')\
-            .option('url', 'jdbc:postgresql://data-warehouse:5432/datawarehouse')\
-            .option('dbtable', classification + '_' + runtime)\
-            .option('user','datawarehouse')\
-            .option('password','datawarehouse')\
+            .option('url', 'jdbc:postgresql://app-warehouse:5432/datawarehouse')\
+            .option('dbtable', "app_store")\
+            .option('user','admin')\
+            .option('password','admin')\
             .option('driver','org.postgresql.Driver')\
             .save()
         print("-------------DU LIEU DUOC GHI THANH CONG---------------------------")
@@ -162,10 +157,17 @@ def transform(classification):
     
 if __name__ == '__main__':
     runtime = datetime.now().strftime('%d%m%y')
-    # runtime = '301124'
+
     spark = SparkSession.builder.appName('transform') \
-        .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
-    transform('game_phone')
-    transform('game_tablet')
+                .config('spark.jars', '/opt/airflow/code/postgresql-42.2.5.jar').getOrCreate()
+    
+    spark.sparkContext.setLogLevel("ERROR")
+
+    devices = ["phone","tablet","tv"]
+    category = ["games","apps"]
+    for cate in category:
+        for device in devices:
+            transform(cate,device)
+            print(f"TRANSFORM {runtime}-{cate}-{device}")
 
 
