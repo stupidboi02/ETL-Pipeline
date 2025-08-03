@@ -1,4 +1,4 @@
 FROM chickengang/spark:3.5.0
 USER root
 
-RUN pip install bs4 requests
+RUN pip install --no-cache-dir beautifulsoup4 requests
