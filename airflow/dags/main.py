@@ -18,10 +18,12 @@ with DAG(
     schedule_interval=timedelta(days=1), #tan suat kich hoat dag
     catchup=False, #chay lai tat ca DAG bi bo lo tu start_date
 ) as dag:
-    extract_load_task = BashOperator(
-    task_id = "extract_load_task",
-    bash_command = "spark-submit /opt/airflow/code/extract.py", 
-    execution_timeout=timedelta(minutes=8)
+    
+    extract_load_task = SparkSubmitOperator(
+        task_id="extract_load_task",
+        application="/opt/airflow/code/extract.py",
+        conn_id="spark-connection",  
+        dag=dag,
     )
     
     transform_google_play_task = SparkSubmitOperator(
