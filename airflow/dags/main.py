@@ -34,4 +34,12 @@ with DAG(
         application = "/opt/airflow/code/transform.py",
         dag = dag
     )
-    extract_load_task  >> transform_google_play_task 
+
+    load_to_dwh = SparkSubmitOperator(
+        task_id="load_to_dwh",
+        conn_id="spark-connection",  
+        packages="org.postgresql:postgresql:42.2.5",
+        application="/opt/airflow/code/load.py",
+        dag=dag
+    )
+    extract_load_task  >> transform_google_play_task >> load_to_dwh

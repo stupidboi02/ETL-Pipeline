@@ -1,7 +1,7 @@
 version: '3'
 
 x-airflow-common: &airflow-common
-  image: chickengang/airflow
+  image: airflow
   build:
     context: ./airflow
     dockerfile: dockerfile
@@ -217,7 +217,7 @@ services:
       - POSTGRES_PASSWORD=admin
       - POSTGRES_DB=datawarehouse
     ports:
-      - 5432:5432
+      - 5435:5432
     networks:
       big_data:
     volumes:
